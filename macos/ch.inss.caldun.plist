@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent: the macOS equivalent of the Linux systemd *user* timer.
+  Runs caldun-macos.sh every 2 minutes in your login session, in
+  notify mode so a WARN/CRITICAL fires a desktop notification.
+
+  Install to:  ~/Library/LaunchAgents/ch.inss.caldun.plist
+  See README.md ("Run on a schedule") for the load/unload commands.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ch.inss.caldun</string>
+
+  <!-- The command to run. Adjust the path if you install the script elsewhere. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/caldun-macos.sh</string>
+    <string>--notify</string>
+  </array>
+
+  <!-- Every 120 seconds, matching the Linux timer's 2-minute cadence. -->
+  <key>StartInterval</key>
+  <integer>120</integer>
+
+  <!-- Also run once immediately when the agent is loaded / at login. -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- iStats (a Ruby gem) and Homebrew tools live outside launchd's minimal
+       default PATH; add the common locations so the backend is found. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <!-- Capture output for troubleshooting. -->
+  <key>StandardOutPath</key>
+  <string>/tmp/caldun.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/caldun.err.log</string>
+</dict>
+</plist>

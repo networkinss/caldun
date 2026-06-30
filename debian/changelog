@@ -1,0 +1,78 @@
+caldun (1.6) unstable; urgency=medium
+
+  * Rename the project from check-temps to Caldun: command (/usr/bin/caldun),
+    package, config (/etc/caldun.conf, /etc/caldun-known-issues.conf), systemd
+    user units, MATE panel applet and D-Bus factory, icon, and man page. This is
+    a clean break with no compatibility shims for the old name.
+  * Add faulty-sensor detection. A reading that alarms while every other channel
+    on the same chip stays below WARN (and more than ANOMALY_MARGIN cooler) is
+    flagged [SUSPECT] and reported separately instead of raising a false thermal
+    alarm; a genuine overheat (all channels hot) still alerts as before. New
+    settings ANOMALY_DETECT (default on) and ANOMALY_MARGIN in
+    /etc/caldun.conf.
+  * Add a known-issues database (/etc/caldun-known-issues.conf) mapping a
+    device model/firmware to a defect description and a solution, shown (and sent
+    as a separate notification) when a SUSPECT reading matches.
+  * Ship a default entry for the Samsung SSD 980 firmware 2B4QFXO7 bug, which
+    intermittently reports phantom ~84°C "Composite" spikes while the drive's
+    real sensors stay ~60°C; the fix is a firmware update to 3B4QFXO7 or later.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Tue, 30 Jun 2026 10:30:00 +0200
+
+caldun (1.5) unstable; urgency=medium
+
+  * Add "temps" command (/usr/bin/temps): runs caldun and shows the
+    report in a desktop notification, for triggering the popup manually
+    (panel launcher, keyboard shortcut) without a shell alias. Notification
+    urgency follows the caldun exit code (OK/WARN/CRITICAL).
+  * Promote libnotify-bin from Recommends to Depends: the new "temps" command
+    relies on notify-send unconditionally, so it must always be present.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Tue, 24 Jun 2026 12:45:00 +0200
+
+caldun (1.4) unstable; urgency=medium
+
+  * Fix applet not appearing in the MATE panel after "Add to Panel". The D-Bus
+    activation service was named org.mate.panel.applet.CaldunFactory, but
+    the panel derives the bus name from the factory Id (CaldunAppletFactory)
+    and so requested org.mate.panel.applet.CaldunAppletFactory at startup —
+    a name D-Bus could not activate, so the panel silently skipped the factory.
+    Renamed the service to match the factory Id, per the MATE convention used by
+    all stock applets. Manual launch had masked this by self-registering the
+    correct bus name.
+  * Remove temporary debug syslog logging from the applet fill callback.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Wed, 24 Jun 2026 11:15:00 +0200
+
+caldun (1.3) unstable; urgency=medium
+
+  * Add MATE panel applet (caldun-applet) for live temperature display
+    on Ubuntu and Linux Mint with the MATE desktop.
+  * Applet shows CPU, GPU, and drive temperatures colour-coded by status;
+    left-click to force refresh; tooltip shows full caldun report.
+    Registers via D-Bus so MATE panel discovers it automatically.
+  * Ship custom thermometer+circuit icon (caldun) in hicolor theme at
+    16, 22, 24, 32, 48, 256, and 512 px; used in the "Add to Panel" dialog.
+  * Add to Recommends: python3-gi, gir1.2-gtk-3.0, gir1.2-matepanelapplet-4.0.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Wed, 24 Jun 2026 10:00:00 +0200
+
+caldun (1.1) unstable; urgency=medium
+
+  * postinst: print guidance on "loginctl enable-linger" so the per-user timer
+    can be kept running when no one is logged in.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Sat, 20 Jun 2026 18:25:00 +0200
+
+caldun (1.0) unstable; urgency=medium
+
+  * Initial release.
+  * Portable sensor auto-discovery from "sensors -j" via a driver-class
+    allowlist (CPU/GPU/drive); untrustworthy Super-I/O chips ignored.
+  * Hybrid thresholds: hardware-reported limits combined conservatively with
+    per-category defaults, all overridable in /etc/caldun.conf.
+  * "--check" self-test reports discovered sensors and effective thresholds;
+    exits 4 when no trustworthy sensor is found.
+  * Per-user systemd timer (every 2 minutes) with desktop notifications.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Sat, 20 Jun 2026 17:59:04 +0200

@@ -1,0 +1,32 @@
+Source: caldun
+Section: utils
+Priority: optional
+Maintainer: Oliver Glas <oliver.glas@inss.ch>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: caldun
+Architecture: all
+Depends: ${misc:Depends}, lm-sensors, jq, libnotify-bin
+Recommends: python3-gi, gir1.2-gtk-3.0, gir1.2-matepanelapplet-4.0
+Description: report trustworthy machine temperatures and alert when hot
+ caldun auto-discovers a machine's reliable temperature sensors (CPU,
+ GPU and drives) from lm-sensors and reports them, flagging anything running
+ warm or critical. Super-I/O chips that misreport temperatures on many boards
+ (e.g. nct6798 on AMD systems) are ignored by default.
+ .
+ Alert thresholds are hybrid: the hardware-reported limit is used where the
+ sensor provides one, otherwise a configurable per-category default applies;
+ when both exist the more conservative value wins. Everything is overridable
+ in /etc/caldun.conf, and "caldun --check" shows what will be
+ monitored on the current machine.
+ .
+ The package installs a per-user systemd timer that runs the check every two
+ minutes and raises a desktop notification when a sensor crosses its threshold.
+ .
+ On Ubuntu and Linux Mint with the MATE desktop, a panel applet
+ (caldun-applet) is also installed. Right-click the MATE panel,
+ choose "Add to Panel", and select "Caldun" to enable it.
+ The applet shows live CPU, GPU, and drive temperatures colour-coded by
+ status and refreshes every two minutes.

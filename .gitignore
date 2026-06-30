@@ -1,0 +1,25 @@
+# Built .deb packages and dpkg-buildpackage artifacts
+*.deb
+*.buildinfo
+*.changes
+*.substvars
+
+# debhelper generated files
+debian/debhelper-build-stamp
+debian/files
+debian/*.debhelper
+debian/caldun/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Editor / OS
+.DS_Store
+*~
+*.swp
+*.swo
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json

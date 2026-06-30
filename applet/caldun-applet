@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""caldun MATE panel applet — live CPU/GPU/drive temperature display."""
+
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('MatePanelApplet', '4.0')
+from gi.repository import Gtk, MatePanelApplet, GLib
+
+import subprocess
+import re
+import sys
+
+REFRESH_SECONDS = 120
+CALDUN_BIN = '/usr/bin/caldun'
+
+# Map caldun friendly names to compact panel labels.
+ABBREV = {
+    'Processor':     'CPU',
+    'Graphics chip': 'GPU',
+    'Drive':         'SSD',
+}
+
+STATUS_COLOR = {
+    'OK':       '#2ecc71',  # green
+    'WARN':     '#f39c12',  # amber
+    'CRITICAL': '#e74c3c',  # red
+    '—':   '#95a5a6',  # grey (em-dash: report-only, no threshold)
+}
+
+
+def _run():
+    """Run caldun and return (exit_code, stdout)."""
+    try:
+        r = subprocess.run(
+            [CALDUN_BIN],
+            capture_output=True, text=True, timeout=15,
+        )
+        return r.returncode, r.stdout
+    except FileNotFoundError:
+        return 3, ''
+    except subprocess.TimeoutExpired:
+        return -1, ''
+    except Exception:
+        return -1, ''
+
+
+def _parse(output):
+    """Parse sensor rows from caldun output.
+
+    Each matched row becomes (friendly_label, temp_float, status_str).
+    Rows look like (no ANSI codes when stdout is not a terminal):
+      '  Processor (k10temp Tctl)              45.2\xb0C  [OK]'
+    """
+    sensors = []
+    for line in output.splitlines():
+        m = re.search(r'(.+?)\s{2,}(\d+\.?\d*)\xb0C\s+\[([^\]]+)\]', line.rstrip())
+        if m:
+            sensors.append((m.group(1).strip(), float(m.group(2)), m.group(3).strip()))
+    return sensors
+
+
+def _build_markup(sensors):
+    parts = []
+    for label, temp, status in sensors:
+        # Use the mapped abbreviation, or first 3 chars of first word.
+        friendly = label.split('(')[0].strip()
+        abbrev = ABBREV.get(friendly, friendly.split()[0][:3])
+        color = STATUS_COLOR.get(status, '#ffffff')
+        parts.append(f'<span color="{color}">{abbrev}:{int(round(temp))}\xb0</span>')
+    return 'T: ' + ' '.join(parts) if parts else 'T: …'
+
+
+class TempApplet:
+    def __init__(self, applet):
+        self.applet = applet
+
+        self.label = Gtk.Label()
+        self.label.set_markup('T: …')
+        self.label.set_margin_start(4)
+        self.label.set_margin_end(4)
+
+        # Flat button so GTK receives clicks directly; EventBox is swallowed
+        # by the panel before events reach it.
+        self._btn = Gtk.Button()
+        self._btn.set_relief(Gtk.ReliefStyle.NONE)
+        self._btn.set_can_focus(False)
+        self._btn.add(self.label)
+        self._btn.connect('clicked', lambda b: self._refresh())
+        applet.add(self._btn)
+
+        applet.show_all()
+        self._refresh()
+        GLib.timeout_add_seconds(REFRESH_SECONDS, self._refresh)
+
+    def _refresh(self):
+        code, output = _run()
+
+        if code == 3:
+            self.label.set_markup('<span color="#e74c3c">T: N/A</span>')
+            self._btn.set_tooltip_text(
+                'caldun not found.\nInstall: sudo apt install lm-sensors jq'
+            )
+            return True
+
+        sensors = _parse(output) if code in (0, 1, 2) else []
+
+        if not sensors:
+            self.label.set_markup('<span color="#95a5a6">T: ?</span>')
+            self._btn.set_tooltip_text(
+                output.strip() or 'No sensor data. Run: sudo sensors-detect'
+            )
+            return True
+
+        self.label.set_markup(_build_markup(sensors))
+        self._btn.set_tooltip_text(output.strip())
+        return True  # keep the GLib timeout alive
+
+
+def _applet_fill(applet, iid, data=None):
+    if iid == 'CaldunApplet':
+        TempApplet(applet)
+        return True
+    return False
+
+
+# Canonical 5-argument signature, stable across MATE 1.24 / 1.26 / 1.28
+# (Ubuntu 20.04–24.04, Mint 20–22):
+#   factory_id, out_process (bool, dummy), applet_gtype, callback, data
+MatePanelApplet.Applet.factory_main(
+    'CaldunAppletFactory',
+    True,
+    MatePanelApplet.Applet.__gtype__,
+    _applet_fill,
+    None,
+)

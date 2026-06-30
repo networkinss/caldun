@@ -1,0 +1,69 @@
+.TH CALDUN 1 "2026-06-20" "caldun 1.0" "User Commands"
+.SH NAME
+check\-temps \- report trustworthy machine temperatures and alert when hot
+.SH SYNOPSIS
+.B check\-temps
+.RI [ --notify ]
+.RI [ --check ]
+.SH DESCRIPTION
+.B check\-temps
+auto-discovers the machine's reliable temperature sensors from
+.BR sensors (1)
+JSON output and reports them, flagging any that are running warm or critical.
+Sensors are selected by a driver-class allowlist \(em CPU
+.RB ( k10temp ", " coretemp ", " zenpower ", " acpitz ),
+GPU
+.RB ( amdgpu ", " radeon ", " i915 ", " nouveau )
+and drives
+.RB ( nvme ", " drivetemp ).
+ISA Super-I/O chips (e.g.\&
+.BR nct6798 )
+are ignored by default because their channels are mislabeled on many boards and
+report bogus values.
+.PP
+Thresholds are hybrid. When a sensor reports a hardware limit
+.RI ( temp*_max " / " temp*_crit )
+it is used; otherwise a per-category default applies. When both exist the lower
+(more conservative) value wins, so a hardware limit can only make an alert fire
+sooner. All thresholds and the sensor allow/ignore lists are configurable in
+.IR /etc/caldun.conf .
+.SH OPTIONS
+.TP
+.B --notify
+Send a desktop notification via
+.BR notify-send (1)
+when any sensor is WARN or CRITICAL.
+.TP
+.B --check
+Self-test: list the discovered sensors and their effective WARN/CRITICAL
+thresholds (and whether each came from hardware or a default), then exit.
+.SH EXIT STATUS
+.TP
+.B 0
+All monitored sensors are within normal range.
+.TP
+.B 1
+At least one sensor is at or above its WARN threshold.
+.TP
+.B 2
+At least one sensor is at or above its CRITICAL threshold.
+.TP
+.B 3
+A required command
+.RB ( sensors " or " jq )
+is not installed.
+.TP
+.B 4
+No trustworthy sensors were found; run
+.B sudo sensors-detect
+or add sensors via
+.B EXTRA_SENSORS
+in the config file.
+.SH FILES
+.TP
+.I /etc/caldun.conf
+Configuration (thresholds, margins, sensor allow/ignore lists).
+.SH SEE ALSO
+.BR sensors (1),
+.BR sensors-detect (8),
+.BR notify-send (1)

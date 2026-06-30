@@ -1,0 +1,12 @@
+[Applet Factory]
+Id=CaldunAppletFactory
+InProcess=false
+Location=/usr/lib/mate-panel/applets/caldun-applet
+Name=Caldun Factory
+Description=Factory for the Caldun panel applet
+
+[CaldunApplet]
+Name=Caldun
+Description=Shows CPU, GPU, and drive temperatures live in the MATE panel
+Icon=caldun
+MateComponentId=OAFIID:MATE_CaldunApplet;

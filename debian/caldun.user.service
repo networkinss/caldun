@@ -1,0 +1,10 @@
+[Unit]
+Description=Report machine temperatures and notify if running hot
+Documentation=man:caldun(1)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/caldun --notify
+# caldun exits 1 on WARN and 2 on CRITICAL. Those are expected results,
+# not unit failures, so don't let them mark the service "failed" every run.
+SuccessExitStatus=1 2

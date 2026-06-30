@@ -1,0 +1,29 @@
+#!/bin/sh
+# Show a one-time note about lingering. caldun runs as a per-user systemd
+# timer, so it only runs while that user has a session; enabling linger keeps
+# it running when nobody is logged in (headless/server use).
+set -e
+
+#DEBHELPER#
+
+case "$1" in
+  configure)
+    target_user="${SUDO_USER:-<user>}"
+    echo ""
+    echo "caldun: enabled as a per-user systemd timer (runs every 2 minutes)."
+    echo "  It starts at each user's next login and shows desktop alerts when hot."
+    echo "  To keep it running when no one is logged in (e.g. a headless machine),"
+    echo "  enable lingering for the user:"
+    echo ""
+    echo "      sudo loginctl enable-linger $target_user"
+    echo ""
+    echo "caldun: known-issues database installed at"
+    echo "  /etc/caldun-known-issues.conf — it lets caldun recognise"
+    echo "  buggy sensors (e.g. the Samsung 980 phantom ~84 C spike) and show the"
+    echo "  fix instead of a false alarm. To add your own entries, see the README:"
+    echo "  /usr/share/doc/caldun/caldun.README.md"
+    echo ""
+    ;;
+esac
+
+exit 0

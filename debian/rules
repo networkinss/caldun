@@ -1,0 +1,24 @@
+#!/usr/bin/make -f
+# Build with: dpkg-buildpackage -us -uc -b
+
+%:
+	dh $@
+
+# There is nothing to compile; install the script (renamed, no .sh), the
+# config (auto-registered as a conffile because it lives under /etc), and the
+# man page. The systemd user units are handled by dh_installsystemduser via
+# the debian/caldun.user.{service,timer} files.
+override_dh_auto_install:
+	install -D -m0755 caldun.sh   debian/caldun/usr/bin/caldun
+	install -D -m0644 caldun.conf debian/caldun/etc/caldun.conf
+	install -D -m0644 caldun-known-issues.conf debian/caldun/etc/caldun-known-issues.conf
+	install -D -m0755 applet/caldun-applet \
+	    debian/caldun/usr/lib/mate-panel/applets/caldun-applet
+	install -D -m0644 applet/org.mate.panel.applet.Caldun.mate-panel-applet \
+	    debian/caldun/usr/share/mate-panel/applets/org.mate.panel.applet.Caldun.mate-panel-applet
+	install -D -m0644 applet/org.mate.panel.applet.CaldunAppletFactory.service \
+	    debian/caldun/usr/share/dbus-1/services/org.mate.panel.applet.CaldunAppletFactory.service
+	for sz in 16 22 24 32 48 256 512; do \
+	    install -D -m0644 icons/$${sz}x$${sz}/apps/caldun.png \
+	        debian/caldun/usr/share/icons/hicolor/$${sz}x$${sz}/apps/caldun.png; \
+	done
