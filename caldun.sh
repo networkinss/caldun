@@ -40,7 +40,7 @@ PROG=${0##*/}
 # Kept in lockstep with debian/changelog: debian/rules refuses to build when the
 # two disagree, so the installed script can never report a version the package
 # does not have.
-VERSION=1.7
+VERSION=1.7.1
 SCHEMA=1        # --json schema version; bump only on an incompatible change
 
 # Internal field separator for the record TSVs. Deliberately US (0x1f), not TAB:

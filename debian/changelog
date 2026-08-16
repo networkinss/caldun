@@ -1,3 +1,20 @@
+caldun (1.7.1) unstable; urgency=medium
+
+  * Fix the MATE applet disappearing from the panel after a reboot. The factory
+    callback was gated on "iid == 'CaldunApplet'" and returned False for
+    anything else, building no widget at all. The panel does not pass the same
+    iid string when restoring a session as when an applet is added
+    interactively, so the applet worked when added and was gone after the next
+    login, leaving a 1x1 placeholder. Returning False is not an error, so
+    nothing was logged and no process crashed — the factory just sat idle.
+    The callback now builds unconditionally, as every stock MATE applet
+    (xapp, mintMenu, clock) does; this factory serves one applet type, so there
+    is nothing to dispatch on. It also logs the iid it was given and prints a
+    traceback instead of failing silently, so a future failure is visible in
+    the journal.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Sun, 16 Aug 2026 17:05:00 +0200
+
 caldun (1.7) unstable; urgency=medium
 
   * Fix a bug that suppressed genuine GPU overheat alarms on AMD systems. The

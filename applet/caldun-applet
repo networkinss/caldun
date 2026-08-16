@@ -10,6 +10,7 @@ import json
 import subprocess
 import re
 import sys
+import traceback
 
 REFRESH_SECONDS = 120
 CALDUN_BIN = '/usr/bin/caldun'
@@ -218,10 +219,30 @@ class TempApplet:
 
 
 def _applet_fill(applet, iid, data=None):
-    if iid == 'CaldunApplet':
+    """Build the applet. Deliberately unconditional.
+
+    This used to be gated on `iid == 'CaldunApplet'` and return False otherwise,
+    which made the applet vanish from the panel after a reboot: the panel passes
+    a different iid string when restoring a session than when you add an applet
+    interactively, so the gate failed, no widget was ever built, and the panel
+    was left with a 1x1 placeholder. Nothing was logged, because returning False
+    is not an error — which is what made it so hard to see.
+
+    No stock MATE applet (xapp, mintMenu, clock) checks iid; this factory only
+    ever serves one applet type, so there is nothing to dispatch on. The iid is
+    logged to stderr — the journal, under this factory's name — so the value is
+    visible if this ever needs diagnosing again.
+    """
+    print('caldun-applet: fill iid=%r' % (iid,), file=sys.stderr)
+    try:
         TempApplet(applet)
-        return True
-    return False
+    except Exception:
+        # Never fail silently. Without this, any error here leaves an empty
+        # placeholder in the panel and no trace of why.
+        traceback.print_exc(file=sys.stderr)
+        return False
+    applet.show()
+    return True
 
 
 # Canonical 5-argument signature, stable across MATE 1.24 / 1.26 / 1.28
