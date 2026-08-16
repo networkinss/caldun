@@ -8,6 +8,19 @@
 # config (auto-registered as a conffile because it lives under /etc), and the
 # man page. The systemd user units are handled by dh_installsystemduser via
 # the debian/caldun.user.{service,timer} files.
+# The script carries its own VERSION so that `caldun --version` works from a
+# git checkout too. That makes drift possible, so refuse to build when it
+# disagrees with the changelog rather than shipping a script that misreports
+# which release it is.
+override_dh_auto_build:
+	@script_ver=$$(sed -n 's/^VERSION=\(.*\)$$/\1/p' caldun.sh); \
+	 pkg_ver=$$(dpkg-parsechangelog -S Version); \
+	 if [ "$$script_ver" != "$$pkg_ver" ]; then \
+	     echo "VERSION=$$script_ver in caldun.sh != $$pkg_ver in debian/changelog" >&2; \
+	     exit 1; \
+	 fi; \
+	 echo "version check: caldun.sh and debian/changelog agree on $$pkg_ver"
+
 override_dh_auto_install:
 	install -D -m0755 caldun.sh   debian/caldun/usr/bin/caldun
 	install -D -m0644 caldun.conf debian/caldun/etc/caldun.conf

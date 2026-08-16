@@ -18,6 +18,7 @@ dpkg-buildpackage -us -uc -b
 cd "$SCRIPT_DIR"
 rm -rf "$BUILD_DIR"
 
+# shellcheck disable=SC2012  # names are ours (caldun_<ver>_all.deb); ls -t is fine
 DEB=$(ls -t "$SCRIPT_DIR/"caldun_*.deb 2>/dev/null | head -1)
 if [[ -n "$DEB" ]]; then
     echo "Built: $DEB"

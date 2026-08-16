@@ -1,12 +1,25 @@
-.TH CALDUN 1 "2026-06-20" "caldun 1.0" "User Commands"
+.TH CALDUN 1 "2026-08-16" "caldun 1.7" "User Commands"
 .SH NAME
-check\-temps \- report trustworthy machine temperatures and alert when hot
+caldun \- report trustworthy machine temperatures and alert when hot
 .SH SYNOPSIS
-.B check\-temps
+.B caldun
 .RI [ --notify ]
-.RI [ --check ]
+.RI [ --popup ]
+.RI [ --peak ]
+.br
+.B caldun --check
+.br
+.B caldun --json
+.RI [ --notify ]
+.br
+.B caldun --get
+.I CATEGORY
+.br
+.B caldun --watch
+.RI [ N ]
+.RI [ --json ]
 .SH DESCRIPTION
-.B check\-temps
+.B caldun
 auto-discovers the machine's reliable temperature sensors from
 .BR sensors (1)
 JSON output and reports them, flagging any that are running warm or critical.
@@ -27,16 +40,132 @@ it is used; otherwise a per-category default applies. When both exist the lower
 (more conservative) value wins, so a hardware limit can only make an alert fire
 sooner. All thresholds and the sensor allow/ignore lists are configurable in
 .IR /etc/caldun.conf .
+.SS Suspected sensor faults
+A real overheat heats every channel on a chip, so even the coolest is warm; a
+buggy sensor leaves a sane channel reading cool. When an alarming channel sits
+more than
+.B ANOMALY_MARGIN
+degrees above a sibling channel that is still below WARN, the reading is tagged
+.BR SUSPECT :
+it is listed separately and does
+.I not
+raise a thermal alarm or affect the exit status. Matching entries from
+.IR /etc/caldun-known-issues.conf
+add a defect description and a fix.
 .SH OPTIONS
-.TP
-.B --notify
-Send a desktop notification via
-.BR notify-send (1)
-when any sensor is WARN or CRITICAL.
+.SS Output modes
+These are mutually exclusive.
 .TP
 .B --check
 Self-test: list the discovered sensors and their effective WARN/CRITICAL
 thresholds (and whether each came from hardware or a default), then exit.
+.TP
+.B --json
+Emit the report as a single JSON object (schema 1) instead of formatted text,
+for consumption by other programs. Colour is never emitted. The exit status is
+unchanged, so a caller can use either. Fields per sensor include
+.IR friendly ", " technical ", " chip ", " category ", " celsius ", " warn ", "
+.IR crit ", " threshold_source ", " status " and " siblings_min ,
+plus
+.IR model ", " firmware ", " defect " and " solution
+for suspect readings. The top level also carries
+.IR cpu_clock " and " fans .
+Consumers should check
+.I schema
+before relying on the layout.
+.TP
+.BI --get " CATEGORY"
+Print one bare number \(em the temperature in degrees Celsius, with no unit,
+status or decoration \(em and nothing else, so a script can compare or compute
+with it directly.
+.I CATEGORY
+is
+.BR cpu ", " gpu ", " drive " or " other .
+When more than one sensor belongs to the category (two NVMe drives, say) the
+.I hottest
+wins, that being the reading a build script would gate on; append
+.BI : CHIP
+(for example
+.BR drive:nvme-pci-0300 )
+to name one exactly. Exits 4 if the category has no sensor on this machine, so
+.B t=$(caldun --get gpu) || skip
+works on a headless box.
+.TP
+.BR --watch " [" \fIN\fR ]
+Sample every
+.I N
+seconds (default 30) until interrupted, printing one compact timestamped line
+per sample:
+.PP
+.RS
+.EX
+2026\-08\-16T14:54:28 cpu=50 gpu=42 drive=64.9 cpu_mhz=2100 OK
+.EE
+.RE
+.IP
+Keys are category names, suffixed for duplicates
+.RB ( drive ", " drive2 ).
+Combined with
+.BR --json ,
+one JSON object per line (JSONL) is emitted instead. On exit a peak summary is
+written to standard error. The configuration is read once at startup, not per
+sample, so thresholds cannot change mid-log.
+.PP
+.RS
+Watch mode is the one place where the exit status differs: it exits
+.B 0
+on a clean interrupt, because the status reports that the run ended, not how hot
+the machine was on the last sample.
+.RE
+.SS Modifiers
+.TP
+.B --notify
+Send a desktop notification via
+.BR notify-send (1)
+when any sensor is WARN or CRITICAL. In watch mode, notifications are rate
+limited to one per sensor per state change.
+.TP
+.B --popup
+Always send a desktop notification with the full reading, whatever the status.
+.TP
+.B --peak
+Report the high-water mark recorded for each sensor since the machine booted.
+Peaks are accumulated by every run, including the systemd timer's, so the
+history is as fine-grained as the timer interval. Readings tagged
+.B SUSPECT
+are tracked separately and never become a sensor's peak, so a phantom spike
+cannot poison the record.
+.TP
+.BR -V ", " --version
+Print the program name and version, then exit. The version is also carried in
+the
+.B --json
+output as the
+.I version
+field, alongside
+.IR schema .
+.TP
+.BR -h ", " --help
+Show a usage summary and exit.
+.SH CPU CLOCK
+When a percentage is shown next to the CPU clock it is measured against a
+ceiling that
+.B caldun
+trusts. Under
+.BR amd_pstate " / " intel_pstate ,
+.I cpuinfo_max_freq
+is the boost ceiling and is used directly. Under
+.B acpi-cpufreq
+it is only the
+.I base
+clock \(em on a Ryzen 7 4800U it reads 1.8 GHz while the part boosts to 4.2 GHz,
+so the naive ratio exceeds 100% at idle \(em and no boost ceiling is exposed
+anywhere in sysfs. There
+.B caldun
+uses the highest clock it has ever observed on the machine, and shows absolute
+GHz only until it has enough samples for that to mean something. The reported
+clock is the mean across cores, not the maximum: caldun is itself load on the
+busiest core, so a maximum would read near boost on every sample.
 .SH EXIT STATUS
 .TP
 .B 0
@@ -58,11 +187,59 @@ No trustworthy sensors were found; run
 .B sudo sensors-detect
 or add sensors via
 .B EXTRA_SENSORS
-in the config file.
+in the config file. Also returned by
+.B --get
+when the requested category has no sensor.
+.TP
+.B 64
+Usage error: an unknown option, a missing option value, or two output modes at
+once.
+.SH ENVIRONMENT
+.TP
+.B CALDUN_CONF
+Path to the configuration file (default
+.IR /etc/caldun.conf ).
+.TP
+.B CALDUN_ISSUES
+Path to the known-issues database (default
+.IR /etc/caldun-known-issues.conf ).
+.TP
+.B CALDUN_PEAKS
+Path to the peak state file (default
+.IR $XDG_STATE_HOME/caldun/peaks ).
+.TP
+.B CALDUN_SENSORS_JSON
+Read sensor data from this file instead of running
+.BR sensors (1).
+Intended for testing on machines that have no trustworthy sensors of their own.
 .SH FILES
 .TP
 .I /etc/caldun.conf
-Configuration (thresholds, margins, sensor allow/ignore lists).
+Configuration (thresholds, margins, sensor allow/ignore lists, clock and fan
+display, peak tracking).
+.TP
+.I /etc/caldun-known-issues.conf
+Known faulty-sensor database consulted for SUSPECT readings.
+.TP
+.I $XDG_STATE_HOME/caldun/peaks
+Recorded high-water marks. Written by every run; reset when the machine reboots.
+Safe to delete.
+.SH EXAMPLES
+.TP
+Gate a build on drive temperature:
+.EX
+[ "$(caldun --get drive)" \-lt 70 ] || echo "SSD too hot to start"
+.EE
+.TP
+Log temperatures beside a long compile:
+.EX
+caldun --watch 10 | tee \-a build\-temps.log
+.EE
+.TP
+Feed a monitoring system:
+.EX
+caldun --json | jq '.sensors[] | select(.status != "ok")'
+.EE
 .SH SEE ALSO
 .BR sensors (1),
 .BR sensors-detect (8),

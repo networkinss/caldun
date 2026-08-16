@@ -1,0 +1,40 @@
+name: release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debhelper devscripts dpkg-dev fakeroot
+
+      - name: Check the tag matches debian/changelog
+        # Publishing caldun_1.7_all.deb under a tag that says v1.8 would put a
+        # file on the release page that contradicts its own name. Fail early.
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          changelog=$(dpkg-parsechangelog -S Version)
+          echo "tag=$tag changelog=$changelog"
+          [ "$tag" = "$changelog" ] || {
+            echo "tag v$tag does not match debian/changelog version $changelog"
+            exit 1
+          }
+
+      - name: Build the .deb
+        run: ./build-deb.sh
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: caldun_*.deb
+          generate_release_notes: true

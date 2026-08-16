@@ -1,0 +1,133 @@
+name: build
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deb:
+    # Mint 21 and Mint 22 — the distributions this package actually targets —
+    # are based on these two. The span also covers MATE 1.26 vs 1.28, which is
+    # where the applet's factory_main signature and D-Bus activation name matter.
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ ubuntu-22.04, ubuntu-24.04 ]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: debhelper devscripts dpkg-dev fakeroot
+          version: 1.0
+
+      - name: Build the .deb
+        # build-deb.sh symlinks the sources into _build/ and cleans up after
+        # itself, so it runs unmodified here. Calling it rather than repeating
+        # dpkg-buildpackage flags in YAML keeps one source of truth.
+        run: ./build-deb.sh
+
+      - name: Verify package contents
+        run: |
+          set -euo pipefail
+          deb=$(ls -t caldun_*.deb | head -1)
+          echo "== $deb =="
+          dpkg-deb --info "$deb"
+          dpkg-deb --contents "$deb"
+          # The D-Bus activation name must equal org.mate.panel.applet.<FactoryId>
+          # or the panel silently skips the applet at startup. Cheap to assert.
+          dpkg-deb --contents "$deb" \
+            | grep -q 'org.mate.panel.applet.CaldunAppletFactory.service' \
+            || { echo "D-Bus service file missing or misnamed"; exit 1; }
+
+      - name: lintian
+        # Blocking: the package is currently lintian-clean, so any new tag is a
+        # regression rather than a backlog item.
+        run: |
+          sudo apt-get install -y lintian
+          lintian "$(ls -t caldun_*.deb | head -1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: caldun-deb-${{ matrix.runner }}
+          path: caldun_*.deb
+          if-no-files-found: error
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install linters
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: shellcheck
+          version: 1.0
+
+      - name: shellcheck
+        run: shellcheck caldun.sh build-deb.sh diagnose-applet.sh macos/caldun-macos.sh
+
+      - name: python syntax
+        run: python3 -m py_compile applet/caldun-applet
+
+      - name: man page
+        run: |
+          sudo apt-get install -y groff-base
+          groff -man -Tutf8 -ww man/caldun.1 >/dev/null
+
+  smoke:
+    # A GitHub runner is a VM with no k10temp/amdgpu/nvme, so caldun exits 4 on
+    # real hardware discovery. Until the CALDUN_SENSORS_JSON fixture suite lands
+    # this job asserts only that the modes start, parse their arguments and fail
+    # in the documented way — not that readings are correct.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: jq lm-sensors
+          version: 1.0
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          export CALDUN_PEAKS="$RUNNER_TEMP/peaks"
+
+          rc=0; ./caldun.sh --help >/dev/null || rc=$?
+          [ "$rc" = 0 ] || { echo "--help should exit 0, got $rc"; exit 1; }
+
+          rc=0; ./caldun.sh --frobnicate >/dev/null 2>&1 || rc=$?
+          [ "$rc" = 64 ] || { echo "unknown option should exit 64, got $rc"; exit 1; }
+
+          rc=0; ./caldun.sh --get >/dev/null 2>&1 || rc=$?
+          [ "$rc" = 64 ] || { echo "--get without value should exit 64, got $rc"; exit 1; }
+
+          rc=0; ./caldun.sh --check --json >/dev/null 2>&1 || rc=$?
+          [ "$rc" = 64 ] || { echo "mode conflict should exit 64, got $rc"; exit 1; }
+
+          # No trustworthy chips here: every reporting mode must exit 4 cleanly
+          # rather than crash or emit half a report.
+          for mode in "" "--json" "--get cpu" "--check"; do
+            rc=0
+            # shellcheck disable=SC2086
+            out=$(./caldun.sh $mode 2>/dev/null) || rc=$?
+            [ "$rc" = 4 ] || { echo "'caldun $mode' expected exit 4, got $rc"; exit 1; }
+            [ -z "$out" ] || { echo "'caldun $mode' wrote to stdout on failure: $out"; exit 1; }
+          done
+          echo "smoke test passed (no sensors present, as expected on a runner)"
+
+      - name: Smoke test against a fixture
+        run: |
+          set -euo pipefail
+          export CALDUN_PEAKS="$RUNNER_TEMP/peaks-fixture"
+          export CALDUN_SENSORS_JSON=tests/fixtures/amd-normal.json
+          ./caldun.sh
+          ./caldun.sh --json | jq -e '.schema == 1 and (.sensors | length) > 0' >/dev/null
+          ./caldun.sh --get cpu | grep -Eq '^[0-9.]+$'
+          echo "fixture smoke test passed"
