@@ -8,7 +8,7 @@ BUILD_DIR="$SCRIPT_DIR/_build"
 # (it always writes to the parent of the build dir).
 rm -rf "$BUILD_DIR"
 mkdir "$BUILD_DIR"
-for f in caldun.sh caldun.conf caldun-known-issues.conf debian \
+for f in caldun.sh caldun.conf caldun-known-issues.conf README.md debian \
           man applet icons; do
     ln -s "$SCRIPT_DIR/$f" "$BUILD_DIR/$f"
 done

@@ -49,6 +49,9 @@ NOTIFY_DEFAULT=0             # 1 => behave as if --notify was always passed
 ANOMALY_DETECT=1             # 0 => disable; trust every reading at face value
 ANOMALY_MARGIN=15            # C a channel must exceed all (sub-WARN) siblings by
 KNOWN_ISSUES_DB="${CALDUN_ISSUES:-/etc/caldun-known-issues.conf}"
+NOTIFY_SUSPECT=1             # 1 => send a desktop notification whenever a suspect
+                             #      sensor reading is detected, even without --notify/
+                             #      --popup, so random spikes don't go unannounced.
 
 CONF="${CALDUN_CONF:-/etc/caldun.conf}"
 # shellcheck source=/dev/null
@@ -420,7 +423,7 @@ if command -v notify-send >/dev/null 2>&1; then
     urgency=normal; [ "$status" -ge 2 ] && urgency=critical
     notify-send -t 15000 -u "$urgency" -i temperature "Machine running hot" "$(printf "%b" "$HOT_MSG")"
   fi
-  if [ "$NOTIFY" = 1 ] || [ "$POPUP" = 1 ]; then
+  if [ "$NOTIFY" = 1 ] || [ "$POPUP" = 1 ] || [ "$NOTIFY_SUSPECT" = 1 ]; then
     if [ -n "$SUSPECT_NOTE" ]; then
       notify-send -t 15000 -u normal -i dialog-warning "Sensor reading looks faulty" "$(printf "%b" "$SUSPECT_NOTE")"
     fi
