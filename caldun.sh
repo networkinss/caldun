@@ -335,7 +335,8 @@ peaks_save() {
 # Currently knows how to map NVMe chips (nvme-pci-<bus><devfn>) to their sysfs
 # entry via the PCI address; other chips return nothing (model unknown).
 device_identity() {
-  local chip="$1" driver="${chip%%-*}" want pcipart dev addr rest bus slot func model fw oldf found
+  local chip="$1"
+  local driver="${chip%%-*}" want pcipart dev addr rest bus slot func model fw oldf found
   case "$driver" in
     nvme)
       pcipart="${chip#nvme-pci-}"
@@ -1054,6 +1055,8 @@ watch_summary() {
 }
 
 WATCH_RUNNING=1
+# Invoked indirectly via `trap watch_stop INT TERM` in run_watch.
+# shellcheck disable=SC2317
 watch_stop() { WATCH_RUNNING=0; }
 
 run_watch() {
