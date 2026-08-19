@@ -9,6 +9,7 @@ debian/debhelper-build-stamp
 debian/files
 debian/*.debhelper
 debian/caldun/
+*.deb
 
 # Python
 __pycache__/

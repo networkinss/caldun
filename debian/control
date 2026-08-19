@@ -8,7 +8,7 @@ Rules-Requires-Root: no
 
 Package: caldun
 Architecture: all
-Depends: ${misc:Depends}, lm-sensors, jq, libnotify-bin
+Depends: ${misc:Depends}, lm-sensors, jq, libnotify-bin, python3:any
 Recommends: python3-gi, gir1.2-gtk-3.0, gir1.2-matepanelapplet-4.0
 Description: report trustworthy machine temperatures and alert when hot
  caldun auto-discovers a machine's reliable temperature sensors (CPU,

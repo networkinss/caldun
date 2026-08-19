@@ -61,6 +61,7 @@ EOF
   esac
 done
 
+# shellcheck disable=SC2034  # DIM belongs to the palette even when unused here
 if [ -t 1 ]; then RED=$'\033[31m'; YEL=$'\033[33m'; GRN=$'\033[32m'; DIM=$'\033[2m'; RST=$'\033[0m'
 else RED=; YEL=; GRN=; DIM=; RST=; fi
 
@@ -127,7 +128,7 @@ extract_temps() {
 
 # Map a free-text sensor label to a trusted category, or "" to skip it.
 categorize() {
-  local l; l="$(printf '%s' "$1" | tr 'A-Z' 'a-z')"
+  local l; l="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
   case "$l" in
     *cpu*|*core*|*proc*)             echo CPU ;;
     *gpu*|*graphic*)                 echo GPU ;;

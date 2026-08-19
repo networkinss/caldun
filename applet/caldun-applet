@@ -6,33 +6,54 @@ gi.require_version('Gtk', '3.0')
 gi.require_version('MatePanelApplet', '4.0')
 from gi.repository import Gtk, MatePanelApplet, GLib
 
+import json
 import subprocess
 import re
 import sys
+import traceback
 
 REFRESH_SECONDS = 120
 CALDUN_BIN = '/usr/bin/caldun'
 
-# Map caldun friendly names to compact panel labels.
+# Exit code caldun uses for a usage error. A 1.6 binary does not know --json and
+# exits 64; that is how we detect a mixed upgrade (1.7 applet, 1.6 binary, panel
+# not yet restarted) and fall back to scraping the text report.
+EXIT_USAGE = 64
+
+# Map caldun categories to compact panel labels.
 ABBREV = {
+    'cpu':   'CPU',
+    'gpu':   'GPU',
+    'drive': 'SSD',
+}
+
+# Legacy map, for the text-scraping fallback only.
+ABBREV_FRIENDLY = {
     'Processor':     'CPU',
     'Graphics chip': 'GPU',
     'Drive':         'SSD',
 }
 
 STATUS_COLOR = {
-    'OK':       '#2ecc71',  # green
-    'WARN':     '#f39c12',  # amber
-    'CRITICAL': '#e74c3c',  # red
-    '—':   '#95a5a6',  # grey (em-dash: report-only, no threshold)
+    'ok':       '#2ecc71',  # green
+    'warn':     '#f39c12',  # amber
+    'critical': '#e74c3c',  # red
+    'suspect':  '#9b59b6',  # purple — a sensor we do not believe, not real heat
+    'unknown':  '#95a5a6',  # grey — report-only, no threshold available
+}
+
+# Text-report tags, for the fallback path.
+TAG_STATUS = {
+    'OK': 'ok', 'WARN': 'warn', 'CRITICAL': 'critical',
+    'SUSPECT': 'suspect', '—': 'unknown',
 }
 
 
-def _run():
+def _run(args):
     """Run caldun and return (exit_code, stdout)."""
     try:
         r = subprocess.run(
-            [CALDUN_BIN],
+            [CALDUN_BIN] + args,
             capture_output=True, text=True, timeout=15,
         )
         return r.returncode, r.stdout
@@ -44,30 +65,106 @@ def _run():
         return -1, ''
 
 
-def _parse(output):
-    """Parse sensor rows from caldun output.
+def _read_json():
+    """Preferred path: structured output.
 
-    Each matched row becomes (friendly_label, temp_float, status_str).
+    Returns (code, sensors, report) or None if this caldun predates --json.
+    Each sensor is a dict as emitted by caldun --json (schema 1).
+    """
+    code, out = _run(['--json'])
+    if code == EXIT_USAGE:
+        return None                       # 1.6 binary — caller falls back
+    if code == 3 or not out.strip():
+        return code, [], None
+    try:
+        report = json.loads(out)
+    except (ValueError, TypeError):
+        return code, [], None
+    if report.get('schema') != 1:
+        # A future, incompatible schema. Rather than guess at fields, fall back
+        # to the text report, which is stable across both.
+        return None
+    return code, report.get('sensors', []) or [], report
+
+
+def _read_text():
+    """Fallback: scrape the human-readable report (caldun <= 1.6).
+
     Rows look like (no ANSI codes when stdout is not a terminal):
       '  Processor (k10temp Tctl)              45.2\xb0C  [OK]'
     """
+    code, out = _run([])
     sensors = []
-    for line in output.splitlines():
-        m = re.search(r'(.+?)\s{2,}(\d+\.?\d*)\xb0C\s+\[([^\]]+)\]', line.rstrip())
-        if m:
-            sensors.append((m.group(1).strip(), float(m.group(2)), m.group(3).strip()))
-    return sensors
+    if code in (0, 1, 2):
+        for line in out.splitlines():
+            m = re.search(r'(.+?)\s{2,}(\d+\.?\d*)\xb0C\s+\[([^\]]+)\]', line.rstrip())
+            if not m:
+                continue
+            friendly = m.group(1).split('(')[0].strip()
+            sensors.append({
+                'friendly':  friendly,
+                'technical': m.group(1).strip(),
+                'celsius':   float(m.group(2)),
+                'status':    TAG_STATUS.get(m.group(3).strip(), 'unknown'),
+                'category':  None,
+            })
+    return code, sensors, out
+
+
+def _abbrev(sensor):
+    category = sensor.get('category')
+    if category and category in ABBREV:
+        return ABBREV[category]
+    friendly = (sensor.get('friendly') or '').strip()
+    if friendly in ABBREV_FRIENDLY:
+        return ABBREV_FRIENDLY[friendly]
+    return friendly.split()[0][:3] if friendly else '?'
 
 
 def _build_markup(sensors):
     parts = []
-    for label, temp, status in sensors:
-        # Use the mapped abbreviation, or first 3 chars of first word.
-        friendly = label.split('(')[0].strip()
-        abbrev = ABBREV.get(friendly, friendly.split()[0][:3])
-        color = STATUS_COLOR.get(status, '#ffffff')
-        parts.append(f'<span color="{color}">{abbrev}:{int(round(temp))}\xb0</span>')
+    for s in sensors:
+        temp = s.get('celsius')
+        if temp is None:
+            continue
+        color = STATUS_COLOR.get(s.get('status'), '#ffffff')
+        parts.append(
+            f'<span color="{color}">{_abbrev(s)}:{int(round(temp))}\xb0</span>'
+        )
     return 'T: ' + ' '.join(parts) if parts else 'T: …'
+
+
+def _build_tooltip(sensors, report, text_output):
+    """Tooltip text. Built from JSON when available, so the applet never has to
+    invoke caldun a second time just to get something human-readable."""
+    if report is None:
+        return (text_output or '').strip()
+    lines = []
+    for s in sensors:
+        lines.append('{}: {}\xb0C  [{}]'.format(
+            s.get('friendly', '?'), s.get('celsius', '?'),
+            (s.get('status') or '').upper()))
+    clock = report.get('cpu_clock') or {}
+    if clock.get('ghz') is not None:
+        line = 'CPU clock: {} GHz'.format(clock['ghz'])
+        if clock.get('percent_of_ceiling') is not None:
+            line += ' ({}% of max)'.format(clock['percent_of_ceiling'])
+        lines.append(line)
+    for fan in report.get('fans') or []:
+        lines.append('{}: {} RPM'.format(fan.get('label', 'fan'), fan.get('rpm')))
+    suspects = [s for s in sensors if s.get('status') == 'suspect']
+    if suspects:
+        lines.append('')
+        lines.append('Suspected sensor / firmware issues:')
+        for s in suspects:
+            who = s.get('model') or s.get('technical') or s.get('friendly')
+            lines.append('  • {}: reads {}\xb0C while a sibling channel reads {}\xb0C'
+                         .format(who, s.get('celsius'), s.get('siblings_min')))
+            if s.get('defect'):
+                lines.append('    {}'.format(s['defect']))
+            if s.get('solution'):
+                lines.append('    → {}'.format(s['solution']))
+    return '\n'.join(lines)
 
 
 class TempApplet:
@@ -93,7 +190,14 @@ class TempApplet:
         GLib.timeout_add_seconds(REFRESH_SECONDS, self._refresh)
 
     def _refresh(self):
-        code, output = _run()
+        result = _read_json()
+        if result is None:
+            code, sensors, report = _read_text()
+            text_output = report
+            report = None
+        else:
+            code, sensors, report = result
+            text_output = ''
 
         if code == 3:
             self.label.set_markup('<span color="#e74c3c">T: N/A</span>')
@@ -102,25 +206,43 @@ class TempApplet:
             )
             return True
 
-        sensors = _parse(output) if code in (0, 1, 2) else []
-
         if not sensors:
             self.label.set_markup('<span color="#95a5a6">T: ?</span>')
             self._btn.set_tooltip_text(
-                output.strip() or 'No sensor data. Run: sudo sensors-detect'
+                (text_output or '').strip() or 'No sensor data. Run: sudo sensors-detect'
             )
             return True
 
         self.label.set_markup(_build_markup(sensors))
-        self._btn.set_tooltip_text(output.strip())
+        self._btn.set_tooltip_text(_build_tooltip(sensors, report, text_output))
         return True  # keep the GLib timeout alive
 
 
 def _applet_fill(applet, iid, data=None):
-    if iid == 'CaldunApplet':
+    """Build the applet. Deliberately unconditional.
+
+    This used to be gated on `iid == 'CaldunApplet'` and return False otherwise,
+    which made the applet vanish from the panel after a reboot: the panel passes
+    a different iid string when restoring a session than when you add an applet
+    interactively, so the gate failed, no widget was ever built, and the panel
+    was left with a 1x1 placeholder. Nothing was logged, because returning False
+    is not an error — which is what made it so hard to see.
+
+    No stock MATE applet (xapp, mintMenu, clock) checks iid; this factory only
+    ever serves one applet type, so there is nothing to dispatch on. The iid is
+    logged to stderr — the journal, under this factory's name — so the value is
+    visible if this ever needs diagnosing again.
+    """
+    print('caldun-applet: fill iid=%r' % (iid,), file=sys.stderr)
+    try:
         TempApplet(applet)
-        return True
-    return False
+    except Exception:
+        # Never fail silently. Without this, any error here leaves an empty
+        # placeholder in the panel and no trace of why.
+        traceback.print_exc(file=sys.stderr)
+        return False
+    applet.show()
+    return True
 
 
 # Canonical 5-argument signature, stable across MATE 1.24 / 1.26 / 1.28

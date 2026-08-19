@@ -1,0 +1,150 @@
+{
+  "amdgpu-pci-0500": {
+    "Adapter": "PCI adapter",
+    "iGPU (edge)": {
+      "temp1_input": 42
+    },
+    "iGPU power": {
+      "power1_input": 4
+    },
+    "vddgfx": {
+      "in0_input": 0.674
+    },
+    "vddnb": {
+      "in1_input": 0.712
+    }
+  },
+  "iwlwifi_1-virtual-0": {
+    "Adapter": "Virtual device",
+    "temp1": {}
+  },
+  "k10temp-pci-00c3": {
+    "Adapter": "PCI adapter",
+    "CPU (Tctl)": {
+      "temp1_input": 57.25
+    }
+  },
+  "nct6798-isa-0a10": {
+    "AUXTIN0": {
+      "temp3_alarm": 1,
+      "temp3_beep": 0,
+      "temp3_crit": 100,
+      "temp3_input": 89,
+      "temp3_max": 80,
+      "temp3_max_hyst": 75,
+      "temp3_offset": 0,
+      "temp3_type": 4
+    },
+    "AUXTIN1": {
+      "temp4_alarm": 0,
+      "temp4_beep": 0,
+      "temp4_crit": 100,
+      "temp4_input": 15,
+      "temp4_max": 80,
+      "temp4_max_hyst": 75,
+      "temp4_offset": 0,
+      "temp4_type": 4
+    },
+    "AUXTIN2": {
+      "temp5_alarm": 1,
+      "temp5_beep": 0,
+      "temp5_crit": 100,
+      "temp5_input": 88,
+      "temp5_max": 80,
+      "temp5_max_hyst": 75,
+      "temp5_offset": 0,
+      "temp5_type": 4
+    },
+    "AUXTIN3": {
+      "temp6_alarm": 1,
+      "temp6_beep": 0,
+      "temp6_crit": 100,
+      "temp6_input": 91,
+      "temp6_max": 80,
+      "temp6_max_hyst": 75,
+      "temp6_offset": 0,
+      "temp6_type": 4
+    },
+    "AUXTIN4": {
+      "temp7_alarm": 1,
+      "temp7_beep": 0,
+      "temp7_crit": 100,
+      "temp7_input": 99,
+      "temp7_max": 80,
+      "temp7_max_hyst": 75
+    },
+    "Adapter": "ISA adapter",
+    "CPUTIN": {
+      "temp2_alarm": 1,
+      "temp2_beep": 0,
+      "temp2_crit": 96,
+      "temp2_input": 127.5,
+      "temp2_max": 80,
+      "temp2_max_hyst": 75,
+      "temp2_offset": 0,
+      "temp2_type": 1
+    },
+    "PCH_CHIP_CPU_MAX_TEMP": {
+      "temp9_input": 0
+    },
+    "PCH_CHIP_TEMP": {
+      "temp10_input": 0
+    },
+    "PCH_CPU_TEMP": {
+      "temp11_input": 0
+    },
+    "PCH_MCH_TEMP": {
+      "temp12_input": 0
+    },
+    "SMBUSMASTER 0": {
+      "temp8_beep": 0,
+      "temp8_input": 47,
+      "temp8_max": 80,
+      "temp8_max_hyst": 75
+    },
+    "SYSTIN": {
+      "temp1_alarm": 1,
+      "temp1_beep": 0,
+      "temp1_crit": 96,
+      "temp1_input": 87,
+      "temp1_max": 80,
+      "temp1_max_hyst": 75,
+      "temp1_offset": 0,
+      "temp1_type": 4
+    },
+    "TSI0_TEMP": {
+      "temp13_input": 47.625
+    },
+    "beep_enable": {
+      "beep_enable": 0
+    },
+    "intrusion0": {
+      "intrusion0_alarm": 1,
+      "intrusion0_beep": 0
+    },
+    "intrusion1": {
+      "intrusion1_alarm": 1,
+      "intrusion1_beep": 0
+    }
+  },
+  "nvme-pci-0300": {
+    "Adapter": "PCI adapter",
+    "Composite": {
+      "temp1_alarm": 0,
+      "temp1_crit": 84.85,
+      "temp1_input": 65.85,
+      "temp1_max": 81.85,
+      "temp1_min": -273.15
+    },
+    "Sensor 1": {
+      "temp2_input": 65.85,
+      "temp2_max": 65261.85,
+      "temp2_min": -273.15
+    },
+    "Sensor 2": {
+      "temp3_input": 69.85,
+      "temp3_max": 65261.85,
+      "temp3_min": -273.15
+    }
+  }
+}

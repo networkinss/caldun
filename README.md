@@ -70,21 +70,83 @@ back in — see the [applet section](#mate-panel-applet) below.)
 ## Usage
 
 ```bash
-caldun            # print a one-shot report
-caldun --notify   # same, plus a desktop popup if WARN/CRITICAL
-caldun --check    # self-test: list discovered sensors + thresholds
+caldun                 # print a one-shot report
+caldun --notify        # same, plus a desktop popup if WARN/CRITICAL
+caldun --check         # self-test: list discovered sensors + thresholds
+caldun --peak          # add the high-water marks recorded since boot
+caldun --version       # print the version (also in --json as "version")
+
+caldun --json          # the same report as one JSON object, for programs
+caldun --get cpu       # print one bare number and nothing else, for scripts
+caldun --watch 10      # one compact line every 10s until interrupted
+caldun --watch --json  # ... as JSONL
 ```
 
 Example report:
 
 ```
-Machine temperatures (2026-06-20 17:56:13)
+Machine temperatures (2026-08-16 15:38:25)
 -----------------------------------------------------------
-  Processor (k10temp Tctl)           41.500°C  [OK]
-  Drive (nvme Composite)             43.850°C  [OK]
+  Graphics chip (amdgpu iGPU (edge))     43°C  [OK]
+  Processor (k10temp CPU (Tctl))     55.125°C  [OK]
+  Drive (nvme Composite)              65.85°C  [OK]
+  CPU clock                          1.80 GHz
 -----------------------------------------------------------
 All sensors within normal range.
 ```
+
+### For scripts and other programs
+
+`--json` exists so nothing has to scrape the table above — that layout is free
+to change, the schema is not. Consumers should check the `schema` field.
+
+```bash
+caldun --json | jq '.sensors[] | select(.status != "ok")'
+```
+
+`--get` prints a bare number, so no `grep | sed` is needed to do arithmetic:
+
+```bash
+[ "$(caldun --get drive)" -lt 70 ] || echo "SSD too hot to start the build"
+```
+
+Categories are `cpu`, `gpu`, `drive` and `other`. When a category holds more
+than one sensor (two NVMe drives, say) the **hottest** wins — that being the
+reading a build gate cares about — and `--get drive:nvme-pci-0300` selects one
+exactly. It exits 4 when the category has no sensor on this machine, so
+`t=$(caldun --get gpu) || skip` behaves on a headless box.
+
+`--watch` produces a log you can `tee` next to a build and grep afterwards:
+
+```
+2026-08-16T15:30:26 gpu=43 cpu=57.75 drive=65.85 cpu_mhz=4250 OK
+2026-08-16T15:30:28 gpu=43 cpu=55.75 drive=65.85 cpu_mhz=4289 OK
+```
+
+On exit it writes a peak summary to stderr. **Watch mode exits 0 on a clean
+interrupt** — unlike every other mode, its status reports that the run ended,
+not how hot the machine was on the last sample.
+
+### CPU clock, and why the percentage is sometimes missing
+
+Temperature alone does not answer the question you have during a 40-minute
+compile — *am I losing clocks?* 85 °C while holding boost is fine; 85 °C at
+1.4 GHz means the build now takes twice as long.
+
+Two deliberate choices here:
+
+- **The figure is the mean across cores, not the maximum.** caldun is itself
+  load on the busiest core, so a maximum would read near boost on every sample.
+  The mean discriminates: on a Ryzen 7 4800U it reads ~1.5 GHz idle and ~2.1 GHz
+  under an all-core load.
+- **A percentage appears only against a ceiling caldun trusts.** Under
+  `amd_pstate`/`intel_pstate`, `cpuinfo_max_freq` *is* the boost ceiling and is
+  used directly. Under `acpi-cpufreq` it is only the **base** clock — that same
+  4800U reports 1.8 GHz there while boosting to 4.2 GHz, so the obvious
+  `current / cpuinfo_max_freq` ratio reads over 100 % at idle — and sysfs
+  exposes no boost ceiling at all. caldun therefore uses the highest clock it
+  has ever observed on the machine, and prints absolute GHz only until it has
+  `MIN_FREQ_SAMPLES` observations to back that up.
 
 Example `--check`:
 
@@ -110,8 +172,11 @@ parentheses. The desktop popup (`--notify`) uses the same wording, e.g.:
 | `1`  | At least one sensor at/above its **warn** threshold |
 | `2`  | At least one sensor at/above its **critical** threshold |
 | `3`  | A required command (`sensors` or `jq`) is not installed |
-| `4`  | No trustworthy sensors found (run `sudo sensors-detect`) |
-| `64` | Unknown command-line argument |
+| `4`  | No trustworthy sensors found (run `sudo sensors-detect`), or `--get` was asked for a category this machine has no sensor for |
+| `64` | Usage error: unknown argument, missing option value, or two output modes at once |
+
+`--watch` is the exception: it exits `0` on a clean interrupt, because its
+status reports that the run ended rather than the last sample's temperature.
 
 ### Requirements
 
@@ -400,21 +465,89 @@ in der Liste, melde dich ab und wieder an — siehe den
 ## Verwendung
 
 ```bash
-caldun            # einmaligen Bericht ausgeben
-caldun --notify   # dasselbe, plus Desktop-Pop-up bei WARN/CRITICAL
-caldun --check    # Selbsttest: erkannte Sensoren + Schwellenwerte auflisten
+caldun                 # einmaligen Bericht ausgeben
+caldun --notify        # dasselbe, plus Desktop-Pop-up bei WARN/CRITICAL
+caldun --check         # Selbsttest: erkannte Sensoren + Schwellenwerte auflisten
+caldun --peak          # zusätzlich die Höchstwerte seit dem Systemstart
+caldun --version       # Version ausgeben (steht auch in --json unter "version")
+
+caldun --json          # derselbe Bericht als ein JSON-Objekt, für Programme
+caldun --get cpu       # nur eine nackte Zahl ausgeben, für Skripte
+caldun --watch 10      # alle 10 s eine kompakte Zeile, bis abgebrochen wird
+caldun --watch --json  # ... als JSONL
 ```
 
 Beispielbericht:
 
 ```
-Machine temperatures (2026-06-20 17:56:13)
+Machine temperatures (2026-08-16 15:38:25)
 -----------------------------------------------------------
-  Processor (k10temp Tctl)           41.500°C  [OK]
-  Drive (nvme Composite)             43.850°C  [OK]
+  Graphics chip (amdgpu iGPU (edge))     43°C  [OK]
+  Processor (k10temp CPU (Tctl))     55.125°C  [OK]
+  Drive (nvme Composite)              65.85°C  [OK]
+  CPU clock                          1.80 GHz
 -----------------------------------------------------------
 All sensors within normal range.
 ```
+
+### Für Skripte und andere Programme
+
+`--json` gibt es, damit niemand die obige Tabelle auswerten muss — deren Layout
+darf sich ändern, das Schema nicht. Programme sollten das Feld `schema` prüfen.
+
+```bash
+caldun --json | jq '.sensors[] | select(.status != "ok")'
+```
+
+`--get` gibt eine nackte Zahl aus, sodass für eine Rechnung kein `grep | sed`
+nötig ist:
+
+```bash
+[ "$(caldun --get drive)" -lt 70 ] || echo "SSD zu heiss für den Build"
+```
+
+Kategorien sind `cpu`, `gpu`, `drive` und `other`. Enthält eine Kategorie
+mehrere Sensoren (etwa zwei NVMe-Laufwerke), gewinnt der **heisseste** — das ist
+der Wert, auf den ein Build-Gate schaut —, und `--get drive:nvme-pci-0300`
+wählt gezielt einen aus. Fehlt die Kategorie auf dieser Maschine, ist der
+Exit-Code 4, sodass `t=$(caldun --get gpu) || skip` auch auf einer Maschine ohne
+Grafikchip funktioniert.
+
+`--watch` erzeugt ein Protokoll, das sich neben einem Build mit `tee` mitschreiben
+und später durchsuchen lässt:
+
+```
+2026-08-16T15:30:26 gpu=43 cpu=57.75 drive=65.85 cpu_mhz=4250 OK
+2026-08-16T15:30:28 gpu=43 cpu=55.75 drive=65.85 cpu_mhz=4289 OK
+```
+
+Beim Beenden wird eine Zusammenfassung der Höchstwerte nach stderr geschrieben.
+**Der Watch-Modus endet bei sauberem Abbruch mit 0** — anders als alle anderen
+Modi meldet sein Exit-Code, dass der Lauf beendet wurde, und nicht, wie heiss
+die Maschine bei der letzten Messung war.
+
+### CPU-Takt, und warum der Prozentwert manchmal fehlt
+
+Die Temperatur allein beantwortet die Frage nicht, die man während eines
+40-minütigen Compiles wirklich hat — *verliere ich Takt?* 85 °C bei anliegendem
+Boost sind unbedenklich; 85 °C bei 1,4 GHz bedeuten, dass der Build nun doppelt
+so lange dauert.
+
+Zwei bewusste Entscheidungen:
+
+- **Angegeben wird der Mittelwert über alle Kerne, nicht das Maximum.** caldun
+  ist selbst Last auf dem am stärksten belasteten Kern; ein Maximum läge daher
+  bei jeder einzelnen Messung nahe am Boost. Der Mittelwert unterscheidet: auf
+  einem Ryzen 7 4800U rund 1,5 GHz im Leerlauf und rund 2,1 GHz unter Volllast
+  auf allen Kernen.
+- **Ein Prozentwert erscheint nur gegenüber einer Obergrenze, der caldun traut.**
+  Unter `amd_pstate`/`intel_pstate` *ist* `cpuinfo_max_freq` die Boost-Grenze und
+  wird direkt verwendet. Unter `acpi-cpufreq` ist sie nur der **Basistakt** —
+  derselbe 4800U meldet dort 1,8 GHz, während er auf 4,2 GHz boostet, sodass das
+  naheliegende Verhältnis `aktuell / cpuinfo_max_freq` schon im Leerlauf über
+  100 % liegt —, und sysfs kennt dort überhaupt keine Boost-Grenze. caldun
+  verwendet deshalb den höchsten je auf dieser Maschine beobachteten Takt und
+  gibt bis zu `MIN_FREQ_SAMPLES` Messungen nur absolute GHz aus.
 
 Beispiel `--check`:
 
@@ -441,8 +574,12 @@ denselben Wortlaut, z. B.:
 | `1`  | Mindestens ein Sensor auf/über seinem **Warn**-Schwellenwert |
 | `2`  | Mindestens ein Sensor auf/über seinem **kritischen** Schwellenwert |
 | `3`  | Ein benötigter Befehl (`sensors` oder `jq`) ist nicht installiert |
-| `4`  | Keine vertrauenswürdigen Sensoren gefunden (`sudo sensors-detect` ausführen) |
-| `64` | Unbekanntes Befehlszeilen-Argument |
+| `4`  | Keine vertrauenswürdigen Sensoren gefunden (`sudo sensors-detect` ausführen), oder `--get` wurde nach einer Kategorie gefragt, für die diese Maschine keinen Sensor hat |
+| `64` | Aufruffehler: unbekanntes Argument, fehlender Optionswert oder zwei Ausgabemodi gleichzeitig |
+
+`--watch` ist die Ausnahme: bei sauberem Abbruch endet es mit `0`, weil sein
+Exit-Code meldet, dass der Lauf beendet wurde, und nicht die Temperatur der
+letzten Messung.
 
 ### Voraussetzungen
 

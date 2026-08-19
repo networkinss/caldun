@@ -1,3 +1,75 @@
+caldun (1.7.1) unstable; urgency=medium
+
+  * Fix the MATE applet disappearing from the panel after a reboot. The factory
+    callback was gated on "iid == 'CaldunApplet'" and returned False for
+    anything else, building no widget at all. The panel does not pass the same
+    iid string when restoring a session as when an applet is added
+    interactively, so the applet worked when added and was gone after the next
+    login, leaving a 1x1 placeholder. Returning False is not an error, so
+    nothing was logged and no process crashed — the factory just sat idle.
+    The callback now builds unconditionally, as every stock MATE applet
+    (xapp, mintMenu, clock) does; this factory serves one applet type, so there
+    is nothing to dispatch on. It also logs the iid it was given and prints a
+    traceback instead of failing silently, so a future failure is visible in
+    the journal.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Sun, 16 Aug 2026 17:05:00 +0200
+
+caldun (1.7) unstable; urgency=medium
+
+  * Fix a bug that suppressed genuine GPU overheat alarms on AMD systems. The
+    sensor scan matched any "*_input" field, so amdgpu's voltage channels
+    (vddgfx, ~0.7 V) and power channel were treated as temperature siblings.
+    A 97°C GPU was therefore compared against a 0.7 "°C" sibling, tagged
+    [SUSPECT] as a faulty reading, and reported as "All sensors within normal
+    range" with exit code 0. Only temp*_input fields are read now. Any machine
+    with an amdgpu, radeon or i915 chip was affected.
+  * Add --json: the full report as one JSON object (schema 1), so consumers no
+    longer scrape a formatted table whose layout can change. Includes per-sensor
+    thresholds, their source, status, and the resolved model/firmware/defect/
+    solution for suspect readings.
+  * Add --get CATEGORY: print one bare number and nothing else, for scripts.
+    Where a category holds several sensors the hottest wins; CATEGORY:CHIP
+    selects one exactly. Exits 4 when the category has no sensor.
+  * Add --watch [N]: sample every N seconds (default 30), one compact
+    timestamped line per sample, or JSONL with --json. Prints a peak summary on
+    exit. Notifications are rate limited to one per sensor per state change.
+    Watch mode exits 0 on interrupt: its status reports that the run ended, not
+    the last sample's temperature.
+  * Add --peak and peak tracking. Every run, including the timer's, records a
+    high-water mark per sensor under $XDG_STATE_HOME/caldun/peaks; peaks reset
+    at reboot. SUSPECT readings are tracked separately and never become a
+    sensor's peak, so a phantom spike cannot poison the record.
+  * Report the CPU clock, and fan speeds where the machine has trustworthy ones.
+    The clock is the mean across cores, not the maximum, because caldun is
+    itself load on the busiest core. A percentage is shown only against a
+    ceiling caldun trusts: cpuinfo_max_freq under amd_pstate/intel_pstate, and
+    otherwise the highest clock ever observed on the machine — under
+    acpi-cpufreq cpuinfo_max_freq is merely the base clock (1.8 GHz on a Ryzen 7
+    4800U that boosts to 4.2 GHz), which would put idle above 100%. New
+    settings SHOW_CLOCKS, SHOW_FANS, MIN_FREQ_SAMPLES, PEAK_TRACK.
+  * Rewrite the argument parser so options can take values, and reject usage
+    errors with exit code 64.
+  * Add --version, and show the version in the --help header and in the --json
+    output. Previously the version existed only in the package metadata, so an
+    installed caldun could not say which release it was. debian/rules now
+    refuses to build when the script's VERSION and debian/changelog disagree.
+  * The MATE applet now consumes --json instead of scraping the text report, and
+    shows suspect sensors in their own colour. It falls back to scraping when it
+    finds a caldun older than 1.7, which happens on upgrade until the panel
+    restarts.
+  * Add CALDUN_SENSORS_JSON, which reads sensor data from a file instead of
+    running sensors(1), so the tool can be exercised where the hardware is
+    absent or the interesting state is rare.
+  * Add GitHub Actions: build the .deb on Ubuntu 22.04 and 24.04 (the Mint 21
+    and Mint 22 bases), shellcheck and man-page lint, a smoke test, and a
+    tag-triggered release that refuses to publish when the tag and
+    debian/changelog disagree.
+  * Update the man page, which still documented the pre-rename "check-temps"
+    command.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Sun, 16 Aug 2026 15:40:00 +0200
+
 caldun (1.6) unstable; urgency=medium
 
   * Rename the project from check-temps to Caldun: command (/usr/bin/caldun),
