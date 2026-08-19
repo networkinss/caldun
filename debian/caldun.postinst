@@ -21,7 +21,7 @@ case "$1" in
     echo "  /etc/caldun-known-issues.conf — it lets caldun recognise"
     echo "  buggy sensors (e.g. the Samsung 980 phantom ~84 C spike) and show the"
     echo "  fix instead of a false alarm. To add your own entries, see the README:"
-    echo "  /usr/share/doc/caldun/caldun.README.md"
+    echo "  /usr/share/doc/caldun/README.md.gz (zless)"
     echo ""
     ;;
 esac

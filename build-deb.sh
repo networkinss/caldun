@@ -8,9 +8,12 @@ BUILD_DIR="$SCRIPT_DIR/_build"
 # (it always writes to the parent of the build dir).
 rm -rf "$BUILD_DIR"
 mkdir "$BUILD_DIR"
+# Copy rather than symlink: dh_installdocs preserves a symlink instead of
+# following it, so a symlinked README.md shipped in the .deb as a dangling
+# absolute link into the build tree (/home/runner/work/... on CI).
 for f in caldun.sh caldun.conf caldun-known-issues.conf README.md debian \
           man applet icons; do
-    ln -s "$SCRIPT_DIR/$f" "$BUILD_DIR/$f"
+    cp -RL "$SCRIPT_DIR/$f" "$BUILD_DIR/$f"
 done
 
 cd "$BUILD_DIR"

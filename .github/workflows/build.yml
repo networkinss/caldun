@@ -30,7 +30,7 @@ jobs:
           sudo apt-get install -y debhelper devscripts dpkg-dev fakeroot
 
       - name: Build the .deb
-        # build-deb.sh symlinks the sources into _build/ and cleans up after
+        # build-deb.sh copies the sources into _build/ and cleans up after
         # itself, so it runs unmodified here. Calling it rather than repeating
         # dpkg-buildpackage flags in YAML keeps one source of truth.
         run: ./build-deb.sh
@@ -41,12 +41,18 @@ jobs:
           deb=$(ls -t caldun_*.deb | head -1)
           echo "== $deb =="
           dpkg-deb --info "$deb"
-          dpkg-deb --contents "$deb"
+          dpkg-deb --contents "$deb" > contents.txt
+          cat contents.txt
+          # Assert on a file, not through a pipe: `grep -q` exits at the first
+          # match and closes the pipe, so dpkg-deb dies of SIGPIPE and pipefail
+          # fails the *successful* case.
           # The D-Bus activation name must equal org.mate.panel.applet.<FactoryId>
           # or the panel silently skips the applet at startup. Cheap to assert.
-          dpkg-deb --contents "$deb" \
-            | grep -q 'org.mate.panel.applet.CaldunAppletFactory.service' \
+          grep -q 'org.mate.panel.applet.CaldunAppletFactory.service' contents.txt \
             || { echo "D-Bus service file missing or misnamed"; exit 1; }
+          # A doc shipped as a symlink to the build tree is broken on install.
+          ! grep -q ' -> /home/' contents.txt \
+            || { echo "package contains a symlink into the build tree"; exit 1; }
 
       - name: lintian
         # Blocking: the package is currently lintian-clean, so any new tag is a
