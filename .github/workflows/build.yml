@@ -36,9 +36,14 @@ jobs:
         # status database, so dpkg-checkbuilddeps still reported
         # "Unmet build dependencies: debhelper-compat (= 13)" and aborted the
         # build. Build-Depends resolution needs real dpkg state.
+        # build-essential isn't in debian/control's Build-Depends — Debian
+        # policy treats it as an implicit baseline every build environment has
+        # — but dpkg-checkbuilddeps still hard-checks it's actually installed,
+        # and a bare GitHub runner doesn't guarantee it. Without it here:
+        # "Unmet build dependencies: build-essential:native".
         run: |
           sudo apt-get update
-          sudo apt-get install -y debhelper devscripts dpkg-dev fakeroot
+          sudo apt-get install -y build-essential debhelper devscripts dpkg-dev fakeroot
 
       - name: Build the .deb
         # build-deb.sh copies the sources into _build/ and cleans up after
