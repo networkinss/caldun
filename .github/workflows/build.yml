@@ -16,6 +16,17 @@ jobs:
       matrix:
         runner: [ ubuntu-22.04, ubuntu-24.04 ]
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    # ubuntu-24.04's needrestart defaults to interactive mode, so any apt-get
+    # install pulling in a service package pops a whiptail prompt asking which
+    # services to restart — with no TTY to answer it, the step hangs until the
+    # job timeout instead of failing. ubuntu-22.04 doesn't hit this. Both env
+    # vars matter: DEBIAN_FRONTEND silences debconf itself, NEEDRESTART_MODE=a
+    # (auto-restart, no prompt) silences needrestart specifically — it reads
+    # its own config, not debconf's frontend setting.
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: a
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +80,10 @@ jobs:
 
   lint:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: a
     steps:
       - uses: actions/checkout@v4
 
@@ -95,6 +110,7 @@ jobs:
     # this job asserts only that the modes start, parse their arguments and fail
     # in the documented way — not that readings are correct.
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
