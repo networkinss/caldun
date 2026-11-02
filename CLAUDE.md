@@ -37,6 +37,10 @@ Exit codes feed the systemd service: `0` OK, `1` WARN, `2` CRITICAL,
 error. **`--watch` exits 0 on interrupt** — its status means "the run ended",
 not "the machine was cool".
 
+Machine-readable output goes to **stdout only**, diagnostics to stderr, so
+`caldun --json | jq` never breaks. **Every new flag** updates `man/caldun.1`,
+the README (both languages), `--help` and `caldun.conf`.
+
 Set `CALDUN_SENSORS_JSON=<file>` to feed canned `sensors -j` output instead of
 running lm-sensors; that is how the code is exercised where the hardware is
 absent (CI) or the state is rare (a firmware spike). Fixtures live in
