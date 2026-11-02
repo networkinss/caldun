@@ -37,10 +37,22 @@ Exit codes feed the systemd service: `0` OK, `1` WARN, `2` CRITICAL,
 error. **`--watch` exits 0 on interrupt** — its status means "the run ended",
 not "the machine was cool".
 
+Machine-readable output goes to **stdout only**, diagnostics to stderr, so
+`caldun --json | jq` never breaks. **Every new flag** updates `man/caldun.1`,
+the README (both languages), `--help` and `caldun.conf`.
+
 Set `CALDUN_SENSORS_JSON=<file>` to feed canned `sensors -j` output instead of
 running lm-sensors; that is how the code is exercised where the hardware is
-absent (CI) or the state is rare (a firmware spike). One fixture lives in
-`tests/fixtures/`.
+absent (CI) or the state is rare (a firmware spike). Fixtures live in
+`tests/fixtures/` (see its README; some are synthetic edits of `amd-normal.json`).
+
+**Automated tests:** `./tests/run.sh` (needs only `jq`, ~20 s; CI runs it). It is
+hermetic — fixture input, a test config instead of `/etc/caldun.conf`, a temp
+peaks file and a logging `notify-send` stub — so it passes the same on a runner
+as on a machine with real sensors, and never pops a real notification. Add a
+test there for every behaviour change; `CALDUN_UNDER_TEST=<copy>` runs it
+against another copy of the script. The `tests/test-applet-*.sh` scripts are
+manual (sudo, real panel) and not part of it.
 
 ### Script structure (since 1.7)
 
@@ -115,6 +127,11 @@ sudo cp caldun.sh /usr/bin/caldun
 - **Left-click** triggers an immediate refresh. Right-click shows the panel's
   standard menu (Remove, Move, etc.) — intentionally left to the panel.
 - Margins use `set_margin_start/end`; `set_padding` is deprecated since GTK 3.14.
+- **`_applet_fill` must not block.** The first `_refresh()` (which runs
+  `caldun --json`) is deferred via `GLib.idle_add`. Calling it synchronously in
+  fill left the panel's socket at 1×1 on a slow login: applet process running,
+  `fill iid=` logged, no traceback, yet nothing visible. Diagnose with
+  `xwininfo -root -tree | grep -B1 caldun-applet` — a `1x1` socket is this bug.
 - The applet parses `caldun` stdout (no ANSI codes outside a terminal).
   Sensor rows match: `label  <2+ spaces>  temp°C  [STATUS]`.
 

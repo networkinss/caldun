@@ -99,7 +99,7 @@ jobs:
           version: 1.0
 
       - name: shellcheck
-        run: shellcheck caldun.sh build-deb.sh diagnose-applet.sh macos/caldun-macos.sh
+        run: shellcheck caldun.sh build-deb.sh diagnose-applet.sh macos/caldun-macos.sh tests/run.sh
 
       - name: python syntax
         run: python3 -m py_compile applet/caldun-applet
@@ -110,10 +110,13 @@ jobs:
           groff -man -Tutf8 -ww man/caldun.1 >/dev/null
 
   smoke:
-    # A GitHub runner is a VM with no k10temp/amdgpu/nvme, so caldun exits 4 on
-    # real hardware discovery. Until the CALDUN_SENSORS_JSON fixture suite lands
-    # this job asserts only that the modes start, parse their arguments and fail
-    # in the documented way — not that readings are correct.
+    # The fixture test suite (tests/run.sh): argument handling, the exit-code
+    # contract, the suspect path, multi-drive --get, watch mode and its
+    # notification rate limit. Hermetic: every run reads a fixture
+    # (CALDUN_SENSORS_JSON), never the runner's hardware, which may expose a
+    # chip caldun trusts (acpitz, coretemp). Needs only jq — not lm-sensors.
+    # Job id kept as "smoke" so existing required-check settings still match.
+    name: test suite
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -122,43 +125,8 @@ jobs:
       - name: Install runtime dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: jq lm-sensors
+          packages: jq
           version: 1.0
 
-      - name: Smoke test
-        run: |
-          set -euo pipefail
-          export CALDUN_PEAKS="$RUNNER_TEMP/peaks"
-
-          rc=0; ./caldun.sh --help >/dev/null || rc=$?
-          [ "$rc" = 0 ] || { echo "--help should exit 0, got $rc"; exit 1; }
-
-          rc=0; ./caldun.sh --frobnicate >/dev/null 2>&1 || rc=$?
-          [ "$rc" = 64 ] || { echo "unknown option should exit 64, got $rc"; exit 1; }
-
-          rc=0; ./caldun.sh --get >/dev/null 2>&1 || rc=$?
-          [ "$rc" = 64 ] || { echo "--get without value should exit 64, got $rc"; exit 1; }
-
-          rc=0; ./caldun.sh --check --json >/dev/null 2>&1 || rc=$?
-          [ "$rc" = 64 ] || { echo "mode conflict should exit 64, got $rc"; exit 1; }
-
-          # No trustworthy chips here: every reporting mode must exit 4 cleanly
-          # rather than crash or emit half a report.
-          for mode in "" "--json" "--get cpu" "--check"; do
-            rc=0
-            # shellcheck disable=SC2086
-            out=$(./caldun.sh $mode 2>/dev/null) || rc=$?
-            [ "$rc" = 4 ] || { echo "'caldun $mode' expected exit 4, got $rc"; exit 1; }
-            [ -z "$out" ] || { echo "'caldun $mode' wrote to stdout on failure: $out"; exit 1; }
-          done
-          echo "smoke test passed (no sensors present, as expected on a runner)"
-
-      - name: Smoke test against a fixture
-        run: |
-          set -euo pipefail
-          export CALDUN_PEAKS="$RUNNER_TEMP/peaks-fixture"
-          export CALDUN_SENSORS_JSON=tests/fixtures/amd-normal.json
-          ./caldun.sh
-          ./caldun.sh --json | jq -e '.schema == 1 and (.sensors | length) > 0' >/dev/null
-          ./caldun.sh --get cpu | grep -Eq '^[0-9.]+$'
-          echo "fixture smoke test passed"
+      - name: Run tests/run.sh
+        run: ./tests/run.sh

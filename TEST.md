@@ -3,6 +3,9 @@
 Manual + scripted test plan for the two components (CLI `caldun` and the
 MATE panel applet) plus the systemd timer integration. Re-run after any change.
 
+The scripted CLI checks are automated in `./tests/run.sh` (fixture-driven, run
+by CI); this plan covers what needs real hardware or eyes on the panel.
+
 Legend: `[ ]` to do · `[x]` verified · "you" = needs human eyes on the panel.
 
 Last run: 2026-06-30 (v1.6) — ALL functional tests pass (applet 1–7, CLI 8–14,
