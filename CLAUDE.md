@@ -39,8 +39,16 @@ not "the machine was cool".
 
 Set `CALDUN_SENSORS_JSON=<file>` to feed canned `sensors -j` output instead of
 running lm-sensors; that is how the code is exercised where the hardware is
-absent (CI) or the state is rare (a firmware spike). One fixture lives in
-`tests/fixtures/`.
+absent (CI) or the state is rare (a firmware spike). Fixtures live in
+`tests/fixtures/` (see its README; some are synthetic edits of `amd-normal.json`).
+
+**Automated tests:** `./tests/run.sh` (needs only `jq`, ~20 s; CI runs it). It is
+hermetic — fixture input, a test config instead of `/etc/caldun.conf`, a temp
+peaks file and a logging `notify-send` stub — so it passes the same on a runner
+as on a machine with real sensors, and never pops a real notification. Add a
+test there for every behaviour change; `CALDUN_UNDER_TEST=<copy>` runs it
+against another copy of the script. The `tests/test-applet-*.sh` scripts are
+manual (sudo, real panel) and not part of it.
 
 ### Script structure (since 1.7)
 

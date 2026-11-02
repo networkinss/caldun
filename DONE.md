@@ -1,13 +1,12 @@
-# Caldun — planned work
+# Caldun — completed work
 
-Derived from the original feature wishlist. Ordered: each phase's output is the
-next one's input.
+Moved here from `TODO.md` once done. Derived from the original feature
+wishlist; phases 0–5, the applet follow-on and CI shipped as **1.7**
+(`debian/changelog`); the fixture test suite (CI only) followed. All code work is
+done — checks that need real hardware or a person are in `MANUAL-CHECKS.md`.
+New work: add a `TODO.md` again, and move items here once done.
 
-**Status: phases 0–5, the applet follow-on and CI are implemented and shipped as
-1.7** (`debian/changelog`). What remains is the deferred fixture suite and the
-follow-ups it blocks, listed under *Open* at the bottom.
-
-Rules that applied throughout:
+Rules that applied throughout, and still apply to new work:
 
 - Machine-readable output goes to **stdout only**; diagnostics to stderr, so
   `caldun --json | jq` never breaks.
@@ -145,42 +144,28 @@ and ~233 % under boost. No boost ceiling exists anywhere in cpufreq sysfs under
 - [x] `lintian` on the built `.deb`, blocking — this surfaced a **pre-existing**
       error (`python3-script-but-no-python3-dep`, present in 1.6 too), fixed by
       adding `python3:any` to `Depends`.
-- [x] Smoke job: argument handling and the documented exit-4 behaviour with no
-      trusted sensors (from `no-trusted-chips.json`, not the runner's hardware,
-      which may expose acpitz/coretemp), plus one fixture run so it proves the
-      modes produce real output rather than only that they fail correctly.
+- [x] Smoke job: now runs the fixture test suite (below). Its exit-4 check uses
+      `no-trusted-chips.json`, not the runner's hardware, which may expose
+      acpitz/coretemp.
 - [x] `.github/workflows/release.yml`: tag `v*` builds and attaches the `.deb`,
       refusing to publish when the tag and `debian/changelog` disagree.
 - [x] apt package caching.
 
----
+## Fixture test suite ✅
 
-## Open
-
-### Fixture suite — deferred by decision
-
-Two fixtures exist: `tests/fixtures/amd-normal.json` (a 4800U at idle) and
-`no-trusted-chips.json` (only the untrusted nct6798), because CI needed them to
-prove the modes work. The rest is still to do:
-
-- [ ] Capture the Samsung 980 phantom-84 °C spike (Composite + Sensor 1 high,
-      Sensor 2 sane) — needs the drive to actually misbehave, so grab a
-      `sensors -j` dump next time it happens.
-- [ ] Capture a chip with no `_max`/`_crit`.
-- [ ] Turn `tests/` into a real harness over the fixtures and wire it into the
-      CI smoke job, replacing the hand-rolled assertions there.
-- [ ] Cover the cases currently verified only by hand: the suspect path, the
-      multi-drive `--get` collision, watch-mode notification rate limiting.
-
-### Verified by hand, not yet automated
-
-- [ ] Peak file behaviour across a reboot (boot-id reset). The logic is
-      exercised, the reboot is not.
-- [ ] `amd_pstate` branch of `freq_ceiling()` — this machine is `acpi-cpufreq`,
-      so the pstate path has never run. Test on a machine with
-      `scaling_driver=amd_pstate` before relying on the percentage there.
-- [ ] The applet under a real MATE panel on both 1.26 and 1.28. Its logic is
-      tested headless; `factory_main` and D-Bus activation are not.
+- [x] `tests/run.sh`: hermetic harness over the fixtures (test config instead of
+      `/etc/caldun.conf`, temp peaks file, logging `notify-send` stub), wired
+      into the CI `smoke` job in place of its hand-rolled assertions. 33 tests.
+- [x] Suspect path: phantom spike → `[SUSPECT]`, exit 0, one faulty-sensor
+      notification, kept out of the drive's peak; `ANOMALY_DETECT=0` and
+      `NOTIFY_SUSPECT=0` honoured; an all-channels-hot overheat is never masked.
+- [x] Multi-drive `--get`: hottest wins (the hotter drive sorts second, so
+      "first found" fails), `drive:<chip>` selects exactly, unknown chip → 4.
+- [x] Watch mode: one line per sample, `drive2`, `!suspect`, JSONL, exit 0 on
+      SIGINT while critical, and notifications once per state change.
+- [x] Checked that the suite catches regressions: removing the rate limit,
+      comparing against the hottest sibling and "first drive wins" each make it
+      fail.
 
 ## Explicitly not doing
 
