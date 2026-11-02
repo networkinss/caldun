@@ -186,8 +186,16 @@ class TempApplet:
         applet.add(self._btn)
 
         applet.show_all()
-        self._refresh()
+        # Do NOT call _refresh() here. It runs caldun synchronously, and fill
+        # must return before the panel can complete the XEmbed size handshake;
+        # blocking it at login left the panel's socket at 1x1 (applet running,
+        # but invisible). Defer the first read until the main loop is idle.
+        GLib.idle_add(self._refresh_once)
         GLib.timeout_add_seconds(REFRESH_SECONDS, self._refresh)
+
+    def _refresh_once(self):
+        self._refresh()
+        return False  # one-shot: _refresh() returns True to keep timeouts alive
 
     def _refresh(self):
         result = _read_json()

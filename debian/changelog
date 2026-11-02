@@ -1,3 +1,13 @@
+caldun (1.7.2) unstable; urgency=medium
+
+  * Fix the MATE applet still being invisible in the panel after login on some
+    machines. The fill callback ran caldun synchronously before returning, which
+    blocked the applet while the panel embedded it; the panel's socket was left
+    at 1x1 although the applet was running and logged no error. The first
+    reading is now deferred to GLib.idle_add, so fill returns immediately.
+
+ -- Oliver Glas <oliver.glas@inss.ch>  Mon, 02 Nov 2026 11:23:14 +0100
+
 caldun (1.7.1) unstable; urgency=medium
 
   * Fix the MATE applet disappearing from the panel after a reboot. The factory
