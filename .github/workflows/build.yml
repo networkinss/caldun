@@ -110,10 +110,10 @@ jobs:
           groff -man -Tutf8 -ww man/caldun.1 >/dev/null
 
   smoke:
-    # A GitHub runner is a VM with no k10temp/amdgpu/nvme, so caldun exits 4 on
-    # real hardware discovery. Until the CALDUN_SENSORS_JSON fixture suite lands
-    # this job asserts only that the modes start, parse their arguments and fail
-    # in the documented way — not that readings are correct.
+    # Asserts that the modes start, parse their arguments and fail in the
+    # documented way. The "no sensors" case uses a fixture, never the runner's
+    # real hardware: a runner VM may expose a chip caldun trusts (acpitz,
+    # coretemp), and then caldun rightly exits 0 instead of 4.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -142,8 +142,9 @@ jobs:
           rc=0; ./caldun.sh --check --json >/dev/null 2>&1 || rc=$?
           [ "$rc" = 64 ] || { echo "mode conflict should exit 64, got $rc"; exit 1; }
 
-          # No trustworthy chips here: every reporting mode must exit 4 cleanly
-          # rather than crash or emit half a report.
+          # No trustworthy chips (only the untrusted nct6798): every reporting
+          # mode must exit 4 cleanly rather than crash or emit half a report.
+          export CALDUN_SENSORS_JSON=tests/fixtures/no-trusted-chips.json
           for mode in "" "--json" "--get cpu" "--check"; do
             rc=0
             # shellcheck disable=SC2086
@@ -151,7 +152,7 @@ jobs:
             [ "$rc" = 4 ] || { echo "'caldun $mode' expected exit 4, got $rc"; exit 1; }
             [ -z "$out" ] || { echo "'caldun $mode' wrote to stdout on failure: $out"; exit 1; }
           done
-          echo "smoke test passed (no sensors present, as expected on a runner)"
+          echo "smoke test passed (no-trusted-chips fixture exits 4 in every mode)"
 
       - name: Smoke test against a fixture
         run: |

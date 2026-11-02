@@ -146,8 +146,9 @@ and ~233 % under boost. No boost ceiling exists anywhere in cpufreq sysfs under
       error (`python3-script-but-no-python3-dep`, present in 1.6 too), fixed by
       adding `python3:any` to `Depends`.
 - [x] Smoke job: argument handling and the documented exit-4 behaviour with no
-      sensors present, plus one fixture run so it proves the modes produce real
-      output rather than only that they fail correctly.
+      trusted sensors (from `no-trusted-chips.json`, not the runner's hardware,
+      which may expose acpitz/coretemp), plus one fixture run so it proves the
+      modes produce real output rather than only that they fail correctly.
 - [x] `.github/workflows/release.yml`: tag `v*` builds and attaches the `.deb`,
       refusing to publish when the tag and `debian/changelog` disagree.
 - [x] apt package caching.
@@ -158,13 +159,14 @@ and ~233 % under boost. No boost ceiling exists anywhere in cpufreq sysfs under
 
 ### Fixture suite — deferred by decision
 
-One fixture exists (`tests/fixtures/amd-normal.json`, a 4800U at idle) because
-CI needed something to prove the modes work. The rest is still to do:
+Two fixtures exist: `tests/fixtures/amd-normal.json` (a 4800U at idle) and
+`no-trusted-chips.json` (only the untrusted nct6798), because CI needed them to
+prove the modes work. The rest is still to do:
 
 - [ ] Capture the Samsung 980 phantom-84 °C spike (Composite + Sensor 1 high,
       Sensor 2 sane) — needs the drive to actually misbehave, so grab a
       `sensors -j` dump next time it happens.
-- [ ] Capture a chip with no `_max`/`_crit`, and a machine with no trusted chips.
+- [ ] Capture a chip with no `_max`/`_crit`.
 - [ ] Turn `tests/` into a real harness over the fixtures and wire it into the
       CI smoke job, replacing the hand-rolled assertions there.
 - [ ] Cover the cases currently verified only by hand: the suspect path, the

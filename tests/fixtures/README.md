@@ -9,8 +9,7 @@ or where the interesting state is rare (a firmware spike).
 | file | what it captures |
 |------|------------------|
 | `amd-normal.json` | Ryzen 7 4800U laptop at idle: k10temp, amdgpu (with the voltage/power channels that are *not* temperatures), nvme with three channels, plus the deliberately untrusted nct6798. |
+| `no-trusted-chips.json` | Only the untrusted nct6798 from `amd-normal.json`. Every reporting mode must exit 4 with empty stdout. CI uses it instead of the runner's real hardware, which may expose a trusted chip. |
 
-Only the one fixture so far — enough for CI to assert that the reporting modes
-produce real output rather than only that they fail correctly. The wider suite
-(phantom-spike, no-hardware-limits, no-trusted-chips) is still to be captured;
+The wider suite (phantom-spike, no-hardware-limits) is still to be captured;
 see TODO.md.
